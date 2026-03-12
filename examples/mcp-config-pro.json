@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "local-sql-insight": {
+      "command": "poetry",
+      "args": ["run", "mcp-sql-bridge"],
+      "cwd": "/ABSOLUTE/PATH/TO/YOUR/mcp-sql-bridge"
+    }
+  }
+}

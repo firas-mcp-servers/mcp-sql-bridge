@@ -127,6 +127,12 @@ For PostgreSQL/MySQL, it validates connections and reports connection/auth error
 
 ---
 
+## Documentation
+
+- [Main README](README.md) (this file) — quick start and usage.
+- [docs/](docs/) — [security and hardening](docs/SECURITY.md), [error taxonomy](docs/ERROR_TAXONOMY.md), [pricing and licensing](docs/PRICING_AND_LICENSING.md), [launch and marketing](docs/LAUNCH_AND_MARKETING.md), [future ideas](docs/FUTURE.md).
+- [CONTRIBUTING.md](CONTRIBUTING.md) — development setup, tests, release, PyPI.
+
 ## Requirements
 
 - **Python 3.11+**
@@ -134,6 +140,12 @@ For PostgreSQL/MySQL, it validates connections and reports connection/auth error
 - Optional extras:
   - `postgres` extra for PostgreSQL (`psycopg`)
   - `mysql` extra for MySQL (`pymysql`)
+
+## Feedback and support
+
+- **Bug reports and feature ideas:** [Open an issue](https://github.com/firas-mcp-servers/mcp-sql-bridge/issues).
+- **Questions and discussions:** [GitHub Discussions](https://github.com/firas-mcp-servers/mcp-sql-bridge/discussions).
+- Feedback from users (issues, discussions, or contact) is used to prioritize the roadmap and any future paid offerings.
 
 ## Support & maintenance
 

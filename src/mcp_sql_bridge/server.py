@@ -7,6 +7,8 @@ import logging
 import os
 import re
 import sqlite3
+import uuid
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
@@ -33,6 +35,9 @@ README_TEMPLATE_URI = "mcp-sql-bridge://readme-template"
 
 logger = logging.getLogger("mcp_sql_bridge")
 
+# Optional request ID for observability (set at tool/resource entry)
+_request_id: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+
 
 def _utc_iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -46,6 +51,9 @@ def _log(event: str, level: str = "info", **extra: object) -> None:
         "event": event,
         **extra,
     }
+    rid = _request_id.get()
+    if rid is not None:
+        record["request_id"] = rid
     try:
         line = json.dumps(record, ensure_ascii=False)
     except Exception:
@@ -57,13 +65,19 @@ def _log(event: str, level: str = "info", **extra: object) -> None:
     )
 
 
+# Bounds for MAX_ROWS (config hardening)
+MAX_ROWS_LIMIT = 50_000
+
+
 def _get_max_rows_from_env() -> int:
     value = os.getenv("MCP_SQL_BRIDGE_MAX_ROWS")
     if not value:
         return DEFAULT_MAX_ROWS
     try:
         parsed = int(value)
-        return parsed if parsed > 0 else DEFAULT_MAX_ROWS
+        if parsed <= 0:
+            return DEFAULT_MAX_ROWS
+        return min(parsed, MAX_ROWS_LIMIT)
     except ValueError:
         return DEFAULT_MAX_ROWS
 
@@ -994,6 +1008,13 @@ def _create_server() -> Server:
 
     @server.read_resource()
     async def read_resource(uri: AnyUrl) -> list[ReadResourceContents]:
+        token = _request_id.set(uuid.uuid4().hex[:8])
+        try:
+            return await _read_resource_impl(uri)
+        finally:
+            _request_id.reset(token)
+
+    async def _read_resource_impl(uri: AnyUrl) -> list[ReadResourceContents]:
         if _is_readme_uri(uri):
             path = _readme_path()
             if not path.exists():
@@ -1028,6 +1049,13 @@ def _create_server() -> Server:
         name: str,
         arguments: dict,
     ) -> list[types.TextContent]:
+        token = _request_id.set(uuid.uuid4().hex[:8])
+        try:
+            return _call_tool_impl(name, arguments)
+        finally:
+            _request_id.reset(token)
+
+    async def _call_tool_impl(name: str, arguments: dict) -> list[types.TextContent]:
         if name == "list_tables":
             db_path = arguments.get("db_path")
             backend = arguments.get("backend") or "sqlite"
@@ -1205,7 +1233,7 @@ def _create_server() -> Server:
                     "EXPLAIN plans and real workload characteristics."
                 )
                 text = "\n".join(lines)
-            return [types.TextContent(type="text", text=result)]
+            return [types.TextContent(type="text", text=text)]
         raise ValueError(f"Unknown tool: {name}.")
 
     return server
