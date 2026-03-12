@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "mcp-sql-bridge"
+version = "0.2.0"
+description = "MCP server bridge for SQL operations (SQLite, PostgreSQL, MySQL)"
+authors = ["Firas Mosbahi <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "mcp_sql_bridge", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+mcp = "*"
+sqlalchemy = "*"
+pydantic = "*"
+psycopg = { version = "*", optional = true }
+pymysql = { version = "*", optional = true }
+
+[tool.poetry.scripts]
+mcp-sql-bridge = "mcp_sql_bridge.server:main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+
+[tool.poetry.extras]
+postgres = ["psycopg"]
+mysql = ["pymysql"]
+pro = ["psycopg", "pymysql"]

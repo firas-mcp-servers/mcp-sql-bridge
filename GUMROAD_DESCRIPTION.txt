@@ -1,0 +1,54 @@
+================================================================================
+  MCP SQL BRIDGE PRO — One bridge. Every database.
+================================================================================
+
+You already use Local-SQL-Insight to let your AI query SQLite with full schema
+and business context. Now unlock the same superpowers for Postgres and MySQL.
+
+--------------------------------------------------------------------------------
+  WHAT YOU GET
+--------------------------------------------------------------------------------
+
+  • Same trusted workflow: list tables, run read-only queries, read your
+    project README — but for PostgreSQL and MySQL, not just SQLite.
+
+  • One MCP server, one config. Switch databases by changing a connection
+    string and `backend` value. No extra plugins, no per-database setup.
+
+  • Full CREATE TABLE / DDL for every table so the AI sees exact types,
+    constraints, and indexes. Better schema = better generated SQL.
+
+  • Quick schema scan via `schema_summary`, data shape via `sample_rows`,
+    and helper prompts like `explain_database` and `suggest_indexes_for_query`.
+
+  • Read-only by design. SELECT only. Your production data stays safe while
+    the AI helps you explore, debug, and document.
+
+  • Cursor + Claude Desktop ready. Drop in the same way you use the free
+    SQLite version. Pro uses the same MCP config format.
+
+--------------------------------------------------------------------------------
+  WHO IT'S FOR
+--------------------------------------------------------------------------------
+
+  • Teams that run Postgres or MySQL in dev/staging and want the AI to
+    inspect schema and run safe ad-hoc queries.
+
+  • Developers who already love the free SQLite bridge and need one tool
+    that works across SQLite, Postgres, and MySQL.
+
+  • Anyone who wants AI-assisted SQL without opening a DB GUI or pasting
+    schema by hand.
+
+--------------------------------------------------------------------------------
+  UPGRADE PATH
+--------------------------------------------------------------------------------
+
+  If you're on the free SQLite-only version, Pro is a drop-in upgrade: same
+  tools (list_tables, execute_readonly_query), same README resource. Add your
+  Postgres or MySQL connection details, set `backend` and `connection_string`,
+  and you're done.
+
+================================================================================
+  Get MCP SQL Bridge Pro — and let your AI work across every SQL database.
+================================================================================
