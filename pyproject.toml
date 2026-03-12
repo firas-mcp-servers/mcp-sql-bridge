@@ -24,6 +24,9 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.poetry.extras]
 postgres = ["psycopg"]
 mysql = ["pymysql"]
