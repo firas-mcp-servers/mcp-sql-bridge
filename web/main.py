@@ -17,7 +17,7 @@ DOCS_SITE = PROJECT_ROOT / "site"  # mkdocs build output
 app = FastAPI(
     title="MCP SQL Bridge",
     description="Give your AI read-only access to SQL databases (SQLite, PostgreSQL, MySQL) over the Model Context Protocol.",
-    version="0.2.0",
+    version="1.0.0",
     docs_url=None,  # we mount custom /docs (Swagger) and /redoc
     redoc_url=None,
 )

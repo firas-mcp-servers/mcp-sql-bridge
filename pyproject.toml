@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mcp-sql-bridge"
-version = "0.2.0"
+version = "1.0.0"
 description = "MCP server bridge for SQL operations (SQLite, PostgreSQL, MySQL)"
 authors = ["Firas Mosbahi <you@example.com>"]
 readme = "README.md"

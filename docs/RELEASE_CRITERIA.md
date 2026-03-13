@@ -42,7 +42,7 @@ This document defines what "done" means for the `mcp-sql-bridge` 1.0 release.
 | docs/SECURITY.md | ✅ Done |
 | docs/CONTRIBUTING.md | ✅ Done |
 | docs/DEPRECATION_AND_SUPPORT.md | ✅ Done |
-| CHANGELOG.md with 0.1.0 and 0.2.0 entries | ⬜ Needs final entry |
+| CHANGELOG.md with 0.1.0, 0.2.0, and 1.0.0 entries | ✅ Done |
 | MkDocs site builds cleanly (`mkdocs build`) | ✅ Done |
 
 ## Distribution / visibility

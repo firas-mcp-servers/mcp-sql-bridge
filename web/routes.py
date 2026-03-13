@@ -58,7 +58,7 @@ async def info() -> InfoResponse:
     """Basic service info."""
     return InfoResponse(
         name="MCP SQL Bridge",
-        version="0.2.0",
+        version="1.0.0",
         description="MCP server for read-only SQL (SQLite, PostgreSQL, MySQL).",
     )
 
