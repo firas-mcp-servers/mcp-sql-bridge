@@ -7,7 +7,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .routes import api_router
+from .routes import api_router, count_requests_middleware
 
 # Paths relative to this file
 WEB_DIR = Path(__file__).resolve().parent
@@ -23,6 +23,7 @@ app = FastAPI(
 )
 
 app.include_router(api_router, prefix="/api", tags=["api"])
+app.middleware("http")(count_requests_middleware)
 
 # Serve MkDocs site at /documentation if built
 if DOCS_SITE.exists() and (DOCS_SITE / "index.html").exists():

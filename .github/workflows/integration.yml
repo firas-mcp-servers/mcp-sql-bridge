@@ -1,0 +1,70 @@
+name: Integration tests (Docker)
+
+on:
+  # Run every night at 02:00 UTC
+  schedule:
+    - cron: "0 2 * * *"
+  # Run on version tags (e.g. v0.2.0)
+  push:
+    tags:
+      - "v*"
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  docker-integration:
+    name: Postgres + MySQL integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U testuser"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpass
+          MYSQL_DATABASE: testdb
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -u testuser --password=testpass"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: "2.0.0"
+
+      - name: Install dependencies (pro extras)
+        run: poetry install --extras pro
+
+      - name: Run integration tests
+        env:
+          MCP_TEST_PG_URL: "postgresql://testuser:testpass@localhost:5432/testdb"
+          MCP_TEST_MYSQL_URL: "mysql://testuser:testpass@127.0.0.1:3306/testdb"
+        run: |
+          poetry run pytest tests/test_integration_docker.py -v -s
