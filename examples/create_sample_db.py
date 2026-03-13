@@ -6,6 +6,7 @@ from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent / "sample.db"
 
+
 def main() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -34,6 +35,7 @@ def main() -> None:
         print(f"Created {DB_PATH}")
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     main()

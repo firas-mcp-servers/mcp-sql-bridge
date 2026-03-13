@@ -4,8 +4,6 @@ import sqlite3
 import time
 from pathlib import Path
 
-import pytest
-
 from mcp_sql_bridge.server import _execute_readonly_query_impl
 
 

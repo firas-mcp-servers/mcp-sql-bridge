@@ -11,3 +11,5 @@ The server surfaces errors as `ValueError` messages. For clarity and AI parsing,
 | **Tool**      | Unknown tool name | Unknown tool: ... |
 
 All errors are intended to be **actionable**: they explain what went wrong and, where possible, what to do next (e.g. set `MCP_SQL_BRIDGE_DB_ALLOWED_DIRS`, use a valid path, or provide `connection_string`).
+
+User-facing error messages may be prefixed with a category tag, e.g. `[Connection] ...` or `[Query] ...`, so clients can parse and handle them by category.

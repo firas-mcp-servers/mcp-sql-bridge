@@ -9,4 +9,5 @@ __pycache__/
 *.pyd
 .DS_Store
 examples/sample.db
+site/
 

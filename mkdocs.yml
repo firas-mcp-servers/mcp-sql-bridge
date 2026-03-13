@@ -1,0 +1,35 @@
+site_name: MCP SQL Bridge
+site_description: Documentation for MCP SQL Bridge
+site_url: https://github.com/firas-mcp-servers/mcp-sql-bridge
+repo_url: https://github.com/firas-mcp-servers/mcp-sql-bridge
+edit_uri: edit/master/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: light blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+nav:
+  - Home: index.md
+  - Security: SECURITY.md
+  - Error taxonomy: ERROR_TAXONOMY.md
+  - Pricing & licensing: PRICING_AND_LICENSING.md
+  - Launch & marketing: LAUNCH_AND_MARKETING.md
+  - Future ideas: FUTURE.md
+
+docs_dir: docs
+site_dir: site
+
+plugins:
+  - search

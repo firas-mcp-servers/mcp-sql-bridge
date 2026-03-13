@@ -24,6 +24,20 @@ poetry install
 
 Then plug the server into your editor or desktop app (see below).
 
+**Run & test:** See **[RUN_AND_TEST.md](RUN_AND_TEST.md)** for how to run the MCP server, the web server, unit tests, and Docker-based integration tests (e.g. `poetry run python scripts/run_docker_integration.py`).
+
+### Web server (optional)
+
+A small FastAPI app provides a **landing page**, **Swagger UI**, and **documentation** (MkDocs):
+
+```bash
+poetry install --with web
+mkdocs build          # build docs (optional; without this, /documentation shows build instructions)
+poetry run mcp-sql-bridge-web
+```
+
+Open [http://localhost:8000](http://localhost:8000) for the home page, [http://localhost:8000/docs](http://localhost:8000/docs) for Swagger, [http://localhost:8000/redoc](http://localhost:8000/redoc) for ReDoc, and [http://localhost:8000/documentation](http://localhost:8000/documentation) for the full docs site (after `mkdocs build`).
+
 ---
 
 ## How to use with Cursor
@@ -124,6 +138,23 @@ Then plug the server into your editor or desktop app (see below).
 
 For SQLite, the server validates that paths point to real SQLite files (magic header check) and returns clear errors if a path is wrong or not a database.  
 For PostgreSQL/MySQL, it validates connections and reports connection/auth errors clearly; use read-only roles in production.
+
+### Connection strings (PostgreSQL & MySQL)
+
+Use the `connection_string` argument with `backend: "postgres"` or `backend: "mysql"` when calling `list_tables` or `execute_readonly_query`.
+
+**PostgreSQL** — URL format (password in URL is optional; use env vars in production):
+
+- `postgresql://user:password@localhost:5432/dbname`
+- `postgresql://user@localhost:5432/dbname` (no password)
+- `postgresql://localhost:5432/dbname` (peer/auth trust)
+
+**MySQL** — URL format:
+
+- `mysql://user:password@localhost:3306/dbname`
+- `mariadb://user:password@localhost:3306/dbname`
+
+Install optional drivers: `poetry install --extras postgres` and/or `poetry install --extras mysql` (or `--extras pro` for both). Example MCP configs for multi-database setups are in **`examples/mcp-config-pro.json`** and **`examples/README.md`**.
 
 ---
 

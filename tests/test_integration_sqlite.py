@@ -3,8 +3,6 @@
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from mcp_sql_bridge.server import _execute_readonly_query_impl, _list_tables_impl
 
 

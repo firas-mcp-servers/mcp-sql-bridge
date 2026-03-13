@@ -1,4 +1,3 @@
-import os
 import sqlite3
 from pathlib import Path
 
@@ -57,4 +56,3 @@ def test_validate_db_path_allowed_dirs(tmp_path: Path, monkeypatch: pytest.Monke
     with pytest.raises(ValueError) as exc:
         _validate_db_path(str(disallowed_db))
     assert "not within any allowed directory" in str(exc.value)
-

@@ -24,4 +24,3 @@ def test_is_readme_uri_matches_exact(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert _is_readme_uri(AnyUrl(uri))
     # Trailing slash variation should also match
     assert _is_readme_uri(AnyUrl(uri.rstrip("/") + "/"))
-

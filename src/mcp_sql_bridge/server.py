@@ -7,11 +7,12 @@ import logging
 import os
 import re
 import sqlite3
+import sys
 import uuid
+from collections.abc import Sequence
 from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
 import anyio
@@ -28,7 +29,7 @@ SQLITE_MAGIC = b"SQLite format 3\x00"
 
 # Defaults for result limiting
 DEFAULT_MAX_ROWS = 500
-DEFAULT_MAX_BYTES: Optional[int] = None  # Unlimited by default
+DEFAULT_MAX_BYTES: int | None = None  # Unlimited by default
 
 # URI for the static README template resource
 README_TEMPLATE_URI = "mcp-sql-bridge://readme-template"
@@ -36,11 +37,36 @@ README_TEMPLATE_URI = "mcp-sql-bridge://readme-template"
 logger = logging.getLogger("mcp_sql_bridge")
 
 # Optional request ID for observability (set at tool/resource entry)
-_request_id: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+_request_id: ContextVar[str | None] = ContextVar("request_id", default=None)
+
+# Error categories for AI-friendly messages (see docs/ERROR_TAXONOMY.md)
+ERR_VALIDATION = "Validation"
+ERR_CONNECTION = "Connection"
+ERR_QUERY = "Query"
+ERR_RESOURCE = "Resource"
+ERR_TOOL = "Tool"
+
+
+def _redact_connection_string(url: str) -> str:
+    """Redact password from a connection URL for safe logging."""
+    try:
+        p = urlparse(url)
+        if p.password:
+            netloc = f"{p.username or ''}:***@{p.hostname or ''}:{p.port or ''}"
+        else:
+            netloc = f"{p.hostname or ''}:{p.port or ''}"
+        return f"{p.scheme}://{netloc}{(p.path or '')}"
+    except Exception:
+        return "***"
+
+
+def _err(message: str, category: str = ERR_VALIDATION) -> str:
+    """Return a consistent, actionable error message with optional category prefix."""
+    return f"[{category}] {message}"
 
 
 def _utc_iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _log(event: str, level: str = "info", **extra: object) -> None:
@@ -82,7 +108,7 @@ def _get_max_rows_from_env() -> int:
         return DEFAULT_MAX_ROWS
 
 
-def _get_max_bytes_from_env() -> Optional[int]:
+def _get_max_bytes_from_env() -> int | None:
     value = os.getenv("MCP_SQL_BRIDGE_MAX_BYTES")
     if not value:
         return DEFAULT_MAX_BYTES
@@ -93,7 +119,7 @@ def _get_max_bytes_from_env() -> Optional[int]:
     return parsed if parsed > 0 else DEFAULT_MAX_BYTES
 
 
-def _get_allowed_dirs_from_env() -> List[Path]:
+def _get_allowed_dirs_from_env() -> list[Path]:
     raw = os.getenv("MCP_SQL_BRIDGE_DB_ALLOWED_DIRS")
     if not raw:
         return []
@@ -158,15 +184,14 @@ def _validate_db_path(db_path: str) -> Path:
     return path
 
 
-def _normalize_backend(backend: Optional[str]) -> str:
+def _normalize_backend(backend: str | None) -> str:
     """Normalize backend identifiers and validate."""
     if backend is None or backend == "":
         return "sqlite"
     value = backend.strip().lower()
     if value not in {"sqlite", "postgres", "mysql"}:
         raise ValueError(
-            f"Unsupported backend: {backend!r}. "
-            "Supported backends are: sqlite, postgres, mysql."
+            f"Unsupported backend: {backend!r}. Supported backends are: sqlite, postgres, mysql."
         )
     return value
 
@@ -175,9 +200,7 @@ def _parse_mysql_url(url: str) -> dict:
     """Parse a basic MySQL URL into connection kwargs for PyMySQL."""
     parsed = urlparse(url)
     if parsed.scheme not in {"mysql", "mariadb"}:
-        raise ValueError(
-            "MySQL connection_string must use mysql:// or mariadb:// URL format."
-        )
+        raise ValueError("MySQL connection_string must use mysql:// or mariadb:// URL format.")
     if not parsed.path or parsed.path == "/":
         raise ValueError("MySQL URL must include a database name in the path.")
     db_name = parsed.path.lstrip("/")
@@ -235,7 +258,7 @@ def _readme_template_content() -> str:
 def _format_table(
     col_names: Sequence[str],
     rows: Sequence[Sequence[object]],
-) -> Tuple[str, int, int, bool]:
+) -> tuple[str, int, int, bool]:
     """Format rows into a text table and apply row/byte limits.
 
     Returns (text, original_row_count, returned_row_count, truncated_rows_flag).
@@ -261,11 +284,7 @@ def _format_table(
 
     sep = "+" + "+".join("-" * (w + 2) for w in widths) + "+"
     lines = [sep]
-    lines.append(
-        "| "
-        + " | ".join(str(c).ljust(widths[i]) for i, c in enumerate(col_names))
-        + " |"
-    )
+    lines.append("| " + " | ".join(str(c).ljust(widths[i]) for i, c in enumerate(col_names)) + " |")
     lines.append(sep)
     for row in rows:
         lines.append(
@@ -305,7 +324,7 @@ def _list_tables_sqlite(db_path: str) -> str:
     try:
         conn = sqlite3.connect(path, uri=False)
     except sqlite3.Error as e:
-        _log("list_tables_db_open_error", level="error", db_path=str(path), error=str(e))
+        _log("list_tables_db_open_error", level="error", db_path=path.name, error=str(e))
         raise ValueError(
             f"Could not open the database: {path}\n"
             f"SQLite error: {e}\n"
@@ -319,10 +338,10 @@ def _list_tables_sqlite(db_path: str) -> str:
         )
         rows = cursor.fetchall()
         if not rows:
-            _log("list_tables_no_tables", level="info", db_path=str(path))
+            _log("list_tables_no_tables", level="info", db_path=path.name)
             return "The database contains no user tables."
         lines = []
-        for (table_name, create_sql) in rows:
+        for table_name, create_sql in rows:
             cursor = conn.execute(f"PRAGMA table_info({table_name!r})")
             columns = [row[1] for row in cursor.fetchall()]
             lines.append(f"• {table_name}: {', '.join(columns)}")
@@ -333,12 +352,51 @@ def _list_tables_sqlite(db_path: str) -> str:
         _log(
             "list_tables_success",
             level="info",
-            db_path=str(path),
+            db_path=path.name,
             table_count=len(rows),
         )
         return result
     finally:
         conn.close()
+
+
+def _pg_build_create_table_from_info_schema(
+    cur: object,
+    schema: str,
+    table: str,
+) -> str | None:
+    """Build a best-effort CREATE TABLE from information_schema when pg_get_tabledef is unavailable."""
+    try:
+        cur.execute(
+            """
+            SELECT column_name, data_type, character_maximum_length,
+                   numeric_precision, numeric_scale, is_nullable, column_default
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s
+            ORDER BY ordinal_position
+            """,
+            (schema, table),
+        )
+        rows = cur.fetchall()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    parts: list[str] = []
+    for row in rows:
+        col_name, data_type, char_max, num_prec, num_scale, is_nullable, col_default = row
+        safe_name = f'"{col_name}"' if col_name else ""
+        if data_type == "character varying" and char_max:
+            type_str = f"character varying({char_max})"
+        elif data_type == "numeric" and (num_prec is not None or num_scale is not None):
+            type_str = f"numeric({num_prec or 0},{num_scale or 0})"
+        else:
+            type_str = data_type or "unknown"
+        null_str = "" if is_nullable == "YES" else " NOT NULL"
+        default_str = f" DEFAULT {col_default}" if col_default else ""
+        parts.append(f"  {safe_name} {type_str}{null_str}{default_str}")
+    qualified = f'"{schema}"."{table}"' if schema else f'"{table}"'
+    return f"CREATE TABLE {qualified}(\n" + ",\n".join(parts) + "\n);"
 
 
 def _list_tables_postgres(connection_string: str) -> str:
@@ -356,13 +414,16 @@ def _list_tables_postgres(connection_string: str) -> str:
         _log(
             "list_tables_pg_connect_error",
             level="error",
-            connection_string=connection_string,
+            connection=_redact_connection_string(connection_string),
             error=str(e),
         )
         raise ValueError(
-            "Could not connect to PostgreSQL.\n"
-            f"Connection error: {e}\n"
-            "Verify host, database name, and credentials."
+            _err(
+                "Could not connect to PostgreSQL. "
+                f"Connection error: {e}. "
+                "Verify host, database name, and credentials.",
+                ERR_CONNECTION,
+            )
         ) from e
     try:
         cur = conn.cursor()
@@ -393,7 +454,7 @@ def _list_tables_postgres(connection_string: str) -> str:
             )
             columns = [row[0] for row in cur.fetchall()]
 
-            create_sql: Optional[str] = None
+            create_sql: str | None = None
             try:
                 cur.execute(
                     """
@@ -415,6 +476,9 @@ def _list_tables_postgres(connection_string: str) -> str:
                     table=table,
                     error=str(e),
                 )
+
+            if not create_sql:
+                create_sql = _pg_build_create_table_from_info_schema(cur, schema, table)
 
             lines.append(f"• {schema}.{table}: {', '.join(columns)}")
             if create_sql:
@@ -492,7 +556,7 @@ def _list_tables_mysql(connection_string: str) -> str:
             )
             columns = [row[0] for row in cur.fetchall()]
 
-            create_sql: Optional[str] = None
+            create_sql: str | None = None
             try:
                 cur.execute(f"SHOW CREATE TABLE `{table}`")
                 ddl_row = cur.fetchone()
@@ -527,7 +591,7 @@ def _list_tables_mysql(connection_string: str) -> str:
 def _list_tables_impl(
     db_path: str,
     backend: str = "sqlite",
-    connection_string: Optional[str] = None,
+    connection_string: str | None = None,
 ) -> str:
     """Return a list of all tables, their column names, and CREATE TABLE statements."""
     normalized = _normalize_backend(backend)
@@ -541,24 +605,19 @@ def _list_tables_impl(
         return _list_tables_postgres(connection_string)
     if normalized == "mysql":
         if not connection_string:
-            raise ValueError(
-                "connection_string (MySQL URL) is required when backend='mysql'."
-            )
+            raise ValueError("connection_string (MySQL URL) is required when backend='mysql'.")
         return _list_tables_mysql(connection_string)
     # _normalize_backend already validates, so this is defensive only.
     raise ValueError(f"Unsupported backend: {backend!r}")
 
 
-def _execute_readonly_query_sqlite(db_path: str, query: str) -> Tuple[str, int, int, bool]:
+def _execute_readonly_query_sqlite(db_path: str, query: str) -> tuple[str, int, int, bool]:
     path = _validate_db_path(db_path)
     try:
         conn = sqlite3.connect(path, uri=False)
     except sqlite3.Error as e:
-        _log("execute_query_db_open_error", level="error", db_path=str(path), error=str(e))
-        raise ValueError(
-            f"Could not open the database: {path}\n"
-            f"SQLite error: {e}"
-        ) from e
+        _log("execute_query_db_open_error", level="error", db_path=path.name, error=str(e))
+        raise ValueError(f"Could not open the database: {path}\nSQLite error: {e}") from e
     try:
         cursor = conn.execute(query)
         rows = cursor.fetchall()
@@ -567,11 +626,11 @@ def _execute_readonly_query_sqlite(db_path: str, query: str) -> Tuple[str, int, 
         _log(
             "execute_query_sql_error",
             level="error",
-            db_path=str(path),
+            db_path=path.name,
             error=str(e),
             query_preview=query[:200],
         )
-        raise ValueError(f"Query failed: {e}") from e
+        raise ValueError(_err(f"Query failed: {e}", ERR_QUERY)) from e
     finally:
         conn.close()
 
@@ -579,11 +638,10 @@ def _execute_readonly_query_sqlite(db_path: str, query: str) -> Tuple[str, int, 
         col_names,
         rows,
     )
-
     _log(
         "execute_query_success",
         level="info",
-        db_path=str(path),
+        db_path=path.name,
         row_count=original_row_count,
         returned_rows=returned_rows,
         truncated_rows=original_row_count != returned_rows,
@@ -592,7 +650,9 @@ def _execute_readonly_query_sqlite(db_path: str, query: str) -> Tuple[str, int, 
     return text, original_row_count, returned_rows, truncated_bytes
 
 
-def _execute_readonly_query_postgres(connection_string: str, query: str) -> Tuple[str, int, int, bool]:
+def _execute_readonly_query_postgres(
+    connection_string: str, query: str
+) -> tuple[str, int, int, bool]:
     try:
         import psycopg  # type: ignore[import]
     except ImportError as e:  # pragma: no cover - depends on optional extra
@@ -606,13 +666,16 @@ def _execute_readonly_query_postgres(connection_string: str, query: str) -> Tupl
         _log(
             "execute_query_pg_connect_error",
             level="error",
-            connection_string=connection_string,
+            connection=_redact_connection_string(connection_string),
             error=str(e),
         )
         raise ValueError(
-            "Could not connect to PostgreSQL.\n"
-            f"Connection error: {e}\n"
-            "Verify host, database name, and credentials."
+            _err(
+                "Could not connect to PostgreSQL. "
+                f"Connection error: {e}. "
+                "Verify host, database name, and credentials.",
+                ERR_CONNECTION,
+            )
         ) from e
     try:
         cur = conn.cursor()
@@ -634,7 +697,7 @@ def _execute_readonly_query_postgres(connection_string: str, query: str) -> Tupl
             error=str(e),
             query_preview=query[:200],
         )
-        raise ValueError(f"Query failed: {e}") from e
+        raise ValueError(_err(f"Query failed: {e}", ERR_QUERY)) from e
     finally:
         conn.close()
 
@@ -653,7 +716,7 @@ def _execute_readonly_query_postgres(connection_string: str, query: str) -> Tupl
     return text, original_row_count, returned_rows, truncated_bytes
 
 
-def _execute_readonly_query_mysql(connection_string: str, query: str) -> Tuple[str, int, int, bool]:
+def _execute_readonly_query_mysql(connection_string: str, query: str) -> tuple[str, int, int, bool]:
     try:
         import pymysql  # type: ignore[import]
     except ImportError as e:  # pragma: no cover - depends on optional extra
@@ -673,9 +736,12 @@ def _execute_readonly_query_mysql(connection_string: str, query: str) -> Tuple[s
             error=str(e),
         )
         raise ValueError(
-            "Could not connect to MySQL.\n"
-            f"Connection error: {e}\n"
-            "Verify host, database name, and credentials."
+            _err(
+                "Could not connect to MySQL. "
+                f"Connection error: {e}. "
+                "Verify host, database name, and credentials.",
+                ERR_CONNECTION,
+            )
         ) from e
     try:
         cur = conn.cursor()
@@ -697,7 +763,7 @@ def _execute_readonly_query_mysql(connection_string: str, query: str) -> Tuple[s
             error=str(e),
             query_preview=query[:200],
         )
-        raise ValueError(f"Query failed: {e}") from e
+        raise ValueError(_err(f"Query failed: {e}", ERR_QUERY)) from e
     finally:
         conn.close()
 
@@ -720,16 +786,20 @@ def _execute_readonly_query_impl(
     db_path: str,
     query: str,
     backend: str = "sqlite",
-    connection_string: Optional[str] = None,
+    connection_string: str | None = None,
 ) -> str:
     """Safely execute a SELECT query and return results as a formatted string."""
     q = query.strip()
-    normalized_query = re.sub(
-        r"^[\s\n\r]*(--[^\n]*\n?|\/\*[\s\S]*?\*\/)*",
-        "",
-        q,
-        flags=re.IGNORECASE,
-    ).strip().upper()
+    normalized_query = (
+        re.sub(
+            r"^[\s\n\r]*(--[^\n]*\n?|\/\*[\s\S]*?\*\/)*",
+            "",
+            q,
+            flags=re.IGNORECASE,
+        )
+        .strip()
+        .upper()
+    )
     if not normalized_query.startswith("SELECT"):
         _log(
             "execute_query_rejected_non_select",
@@ -762,9 +832,7 @@ def _execute_readonly_query_impl(
         db_info = {"backend": "postgres"}
     elif backend_normalized == "mysql":
         if not connection_string:
-            raise ValueError(
-                "connection_string (MySQL URL) is required when backend='mysql'."
-            )
+            raise ValueError("connection_string (MySQL URL) is required when backend='mysql'.")
         text, original_row_count, returned_rows, truncated_bytes = _execute_readonly_query_mysql(
             connection_string,
             q,
@@ -1061,7 +1129,9 @@ def _create_server() -> Server:
             backend = arguments.get("backend") or "sqlite"
             connection_string = arguments.get("connection_string")
             if backend in (None, "", "sqlite") and (not db_path or not isinstance(db_path, str)):
-                raise ValueError("db_path (string) is required when backend is 'sqlite' or omitted.")
+                raise ValueError(
+                    "db_path (string) is required when backend is 'sqlite' or omitted."
+                )
             result = _list_tables_impl(
                 db_path or "",
                 backend=backend,
@@ -1074,7 +1144,9 @@ def _create_server() -> Server:
             backend = arguments.get("backend") or "sqlite"
             connection_string = arguments.get("connection_string")
             if backend in (None, "", "sqlite") and (not db_path or not isinstance(db_path, str)):
-                raise ValueError("db_path (string) is required when backend is 'sqlite' or omitted.")
+                raise ValueError(
+                    "db_path (string) is required when backend is 'sqlite' or omitted."
+                )
             if query is None or not isinstance(query, str):
                 raise ValueError("query (string) is required.")
             result = _execute_readonly_query_impl(
@@ -1091,7 +1163,9 @@ def _create_server() -> Server:
             normalized = _normalize_backend(backend)
             if normalized == "sqlite":
                 if not db_path or not isinstance(db_path, str):
-                    raise ValueError("db_path (string) is required when backend is 'sqlite' or omitted.")
+                    raise ValueError(
+                        "db_path (string) is required when backend is 'sqlite' or omitted."
+                    )
                 summary = _list_tables_sqlite(db_path)
             elif normalized == "postgres":
                 if not connection_string or not isinstance(connection_string, str):
@@ -1128,7 +1202,9 @@ def _create_server() -> Server:
             normalized = _normalize_backend(backend)
             if normalized == "sqlite":
                 if not db_path or not isinstance(db_path, str):
-                    raise ValueError("db_path (string) is required when backend is 'sqlite' or omitted.")
+                    raise ValueError(
+                        "db_path (string) is required when backend is 'sqlite' or omitted."
+                    )
                 query = f"SELECT * FROM {table!r} LIMIT {limit}"
                 result = _execute_readonly_query_impl(db_path, query, backend="sqlite")
             elif normalized == "postgres":
@@ -1165,7 +1241,9 @@ def _create_server() -> Server:
             normalized = _normalize_backend(backend)
             if normalized == "sqlite":
                 if not db_path or not isinstance(db_path, str):
-                    raise ValueError("db_path (string) is required when backend is 'sqlite' or omitted.")
+                    raise ValueError(
+                        "db_path (string) is required when backend is 'sqlite' or omitted."
+                    )
                 summary = _list_tables_sqlite(db_path)
             elif normalized == "postgres":
                 if not connection_string or not isinstance(connection_string, str):
@@ -1252,5 +1330,23 @@ async def _run_server() -> None:
 
 def main() -> None:
     """Entry point for the mcp-sql-bridge CLI."""
+    argv = sys.argv[1:] if len(sys.argv) > 1 else []
+    if "--help" in argv or "-h" in argv:
+        print(
+            "Usage: mcp-sql-bridge [OPTIONS]\n"
+            "  Start the MCP SQL Bridge server (stdio). No options required.\n"
+            "  Use with Cursor or Claude Desktop by adding this command to your MCP config.\n"
+            "  See README for setup. Options: --version, -V, --help, -h.",
+            file=sys.stderr,
+        )
+        sys.exit(0)
+    if "--version" in argv or "-V" in argv:
+        try:
+            from importlib.metadata import version
+
+            print(version("mcp-sql-bridge"), end="")
+        except Exception:
+            print("0.2.0", end="")
+        sys.exit(0)
     # Use stderr for any logging so stdout is reserved for JSON-RPC
     anyio.run(_run_server)

@@ -1,4 +1,3 @@
-import os
 import sqlite3
 from pathlib import Path
 
@@ -40,7 +39,9 @@ def test_execute_readonly_query_rejects_non_select(tmp_path: Path) -> None:
     assert "Only SELECT queries are allowed" in str(exc.value)
 
 
-def test_execute_readonly_query_truncates_rows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_execute_readonly_query_truncates_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     db_path = _make_db(tmp_path)
     # Force a tiny row limit
     monkeypatch.setenv("MCP_SQL_BRIDGE_MAX_ROWS", "2")
@@ -49,10 +50,11 @@ def test_execute_readonly_query_truncates_rows(tmp_path: Path, monkeypatch: pyte
     assert "results truncated to 2 rows" in out
 
 
-def test_execute_readonly_query_truncates_bytes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_execute_readonly_query_truncates_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     db_path = _make_db(tmp_path)
     # Very small byte limit to force truncation
     monkeypatch.setenv("MCP_SQL_BRIDGE_MAX_BYTES", "50")
     out = _execute_readonly_query_impl(str(db_path), "SELECT id, name FROM items ORDER BY id")
     assert "[output truncated due to size limit]" in out
-

@@ -41,4 +41,3 @@ def test_list_tables_includes_columns_and_create_table(tmp_path: Path) -> None:
     assert "CREATE TABLE" in output
     assert "CREATE TABLE users" in output
     assert "CREATE TABLE orders" in output
-
