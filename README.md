@@ -1,5 +1,7 @@
 # MCP SQL Bridge
 
+<!-- mcp-name: io.github.firas-mcp-servers/mcp-sql-bridge -->
+
 **Local-SQL-Insight** — Give your AI assistant direct, read-only access to your SQL databases over the [Model Context Protocol](https://modelcontextprotocol.io). No APIs, no cloud. Your data stays on your machine.
 
 ---

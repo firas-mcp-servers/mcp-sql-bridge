@@ -1,0 +1,37 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.firas-mcp-servers/mcp-sql-bridge",
+  "title": "MCP SQL Bridge",
+  "description": "Read-only SQL MCP server for SQLite, PostgreSQL, and MySQL. Schema-aware, local-first.",
+  "repository": {
+    "url": "https://github.com/firas-mcp-servers/mcp-sql-bridge",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-sql-bridge",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MCP_SQL_BRIDGE_DB_ALLOWED_DIRS",
+          "description": "Colon-separated list of directories that SQLite db_path values must be inside (security). Optional.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "MCP_SQL_BRIDGE_MAX_ROWS",
+          "description": "Maximum rows returned per query (default 500).",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
